@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../models/user_model.dart';
@@ -26,8 +27,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _teachSkillController = TextEditingController();
   final _learnSkillController = TextEditingController();
   
-  final AuthService _authService = AuthService();
-  final DatabaseService _dbService = DatabaseService();
   final ImagePicker _imagePicker = ImagePicker();
   
   List<String> _skillsToTeach = [];
@@ -45,9 +44,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   /// Load current user profile data
   Future<void> _loadUserProfile() async {
-    final user = _authService.currentUser;
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final dbService = Provider.of<DatabaseService>(context, listen: false);
+    
+    final user = authService.currentUser;
     if (user != null) {
-      final profile = await _dbService.getUserProfile(user.uid);
+      final profile = await dbService.getUserProfile(user.uid);
       if (profile != null && mounted) {
         setState(() {
           _currentUser = profile;
@@ -132,14 +134,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final user = _authService.currentUser;
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final dbService = Provider.of<DatabaseService>(context, listen: false);
+      
+      final user = authService.currentUser;
       if (user == null) return;
 
       String? photoUrl = _profileImageUrl;
 
       // Upload profile photo if selected
       if (_profileImage != null) {
-        photoUrl = await _dbService.uploadProfilePhoto(user.uid, _profileImage!);
+        photoUrl = await dbService.uploadProfilePhoto(user.uid, _profileImage!);
       }
 
       // Create updated user model
@@ -156,7 +161,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
 
       // Update profile in Firestore
-      await _dbService.updateUserProfile(updatedUser);
+      await dbService.updateUserProfile(updatedUser);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

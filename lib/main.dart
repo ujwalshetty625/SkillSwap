@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'services/auth_service.dart';
+import 'services/db_service.dart';
+import 'services/match_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 
@@ -27,9 +29,15 @@ class SkillocityApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // Provide AuthService for authentication state management
+        // Provide services for app-wide access
         Provider<AuthService>(
           create: (_) => AuthService(),
+        ),
+        Provider<DatabaseService>(
+          create: (_) => DatabaseService(),
+        ),
+        Provider<MatchService>(
+          create: (_) => MatchService(),
         ),
       ],
       child: MaterialApp(

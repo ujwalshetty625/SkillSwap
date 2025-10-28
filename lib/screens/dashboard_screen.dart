@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/db_service.dart';
@@ -17,10 +18,6 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final AuthService _authService = AuthService();
-  final DatabaseService _dbService = DatabaseService();
-  final MatchService _matchService = MatchService();
-  
   int _selectedIndex = 0;
   UserModel? _currentUser;
   List<UserModel> _potentialMatches = [];
@@ -38,17 +35,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
     setState(() => _isLoading = true);
     
     try {
-      final user = _authService.currentUser;
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final dbService = Provider.of<DatabaseService>(context, listen: false);
+      final matchService = Provider.of<MatchService>(context, listen: false);
+      
+      final user = authService.currentUser;
       if (user != null) {
         // Load user profile
-        final profile = await _dbService.getUserProfile(user.uid);
+        final profile = await dbService.getUserProfile(user.uid);
         
         if (profile != null) {
           // Load potential matches
-          final potentialMatches = await _matchService.findPotentialMatches(profile);
+          final potentialMatches = await matchService.findPotentialMatches(profile);
           
           // Load existing matches
-          final myMatches = await _matchService.getMatchedUsers(profile.uid);
+          final myMatches = await matchService.getMatchedUsers(profile.uid);
           
           if (mounted) {
             setState(() {
@@ -75,7 +76,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (_currentUser == null) return;
 
     try {
-      bool created = await _matchService.createMatch(_currentUser!, otherUser);
+      final matchService = Provider.of<MatchService>(context, listen: false);
+      bool created = await matchService.createMatch(_currentUser!, otherUser);
       
       if (created && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -112,7 +114,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   /// Sign out user
   Future<void> _handleSignOut() async {
-    await _authService.signOut();
+    final authService = Provider.of<AuthService>(context, listen: false);
+    await authService.signOut();
     if (mounted) {
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -268,7 +271,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _showMatchDialog(UserModel user) {
     if (_currentUser == null) return;
     
-    final commonSkills = _matchService.getCommonSkills(_currentUser!, user);
+    final matchService = Provider.of<MatchService>(context, listen: false);
+    final commonSkills = matchService.getCommonSkills(_currentUser!, user);
     
     showDialog(
       context: context,

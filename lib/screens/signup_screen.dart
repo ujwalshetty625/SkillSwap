@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_text_field.dart';
@@ -19,7 +20,6 @@ class _SignupScreenState extends State<SignupScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final AuthService _authService = AuthService();
   
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -44,8 +44,11 @@ class _SignupScreenState extends State<SignupScreen> {
     setState(() => _isLoading = true);
 
     try {
+      // Get AuthService from Provider
+      final authService = Provider.of<AuthService>(context, listen: false);
+      
       // Attempt to create account
-      await _authService.signUp(
+      await authService.signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         name: _nameController.text.trim(),

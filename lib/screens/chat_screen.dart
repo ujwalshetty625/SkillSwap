@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../models/user_model.dart';
 import '../services/db_service.dart';
@@ -23,7 +24,6 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
-  final DatabaseService _dbService = DatabaseService();
   final Uuid _uuid = const Uuid();
 
   @override
@@ -39,6 +39,8 @@ class _ChatScreenState extends State<ChatScreen> {
     if (messageText.isEmpty) return;
 
     try {
+      final dbService = Provider.of<DatabaseService>(context, listen: false);
+      
       // Create message model
       MessageModel message = MessageModel(
         id: _uuid.v4(),
@@ -48,7 +50,7 @@ class _ChatScreenState extends State<ChatScreen> {
       );
 
       // Send to Firestore
-      await _dbService.sendMessage(message);
+      await dbService.sendMessage(message);
 
       // Clear input
       _messageController.clear();
@@ -118,7 +120,7 @@ class _ChatScreenState extends State<ChatScreen> {
           // Messages list
           Expanded(
             child: StreamBuilder<List<MessageModel>>(
-              stream: _dbService.getMessages(
+              stream: Provider.of<DatabaseService>(context, listen: false).getMessages(
                 widget.currentUser.uid,
                 widget.otherUser.uid,
               ),
