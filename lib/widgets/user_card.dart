@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/user_model.dart';
 
-/// Card widget displaying user information
-/// Used in match lists and search results
+/// Card widget displaying user information.
+/// Used in match lists and search results.
 class UserCard extends StatelessWidget {
   final UserModel user;
   final VoidCallback onTap;
@@ -18,6 +18,8 @@ class UserCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Card(
       elevation: 2,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -30,49 +32,54 @@ class UserCard extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Profile photo
+              // Profile Photo
               CircleAvatar(
                 radius: 30,
-                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                backgroundImage: user.photoUrl != null
+                backgroundColor: theme.colorScheme.primaryContainer,
+                backgroundImage: user.photoUrl != null && user.photoUrl!.isNotEmpty
                     ? CachedNetworkImageProvider(user.photoUrl!)
                     : null,
-                child: user.photoUrl == null
+                child: (user.photoUrl == null || user.photoUrl!.isEmpty)
                     ? Text(
                         user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
                         style: TextStyle(
                           fontSize: 24,
-                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.onPrimaryContainer,
                         ),
                       )
                     : null,
               ),
               const SizedBox(width: 16),
-              
-              // User info
+
+              // User Information
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      user.name,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                      user.name.isNotEmpty ? user.name : 'Unnamed User',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurface,
+                      ),
                     ),
                     if (user.bio.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(
                         user.bio,
-                        style: Theme.of(context).textTheme.bodySmall,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
                     const SizedBox(height: 8),
-                    
-                    // Skills chips
+
+                    // Skills Chips
                     Wrap(
                       spacing: 4,
                       runSpacing: 4,
@@ -82,24 +89,26 @@ class UserCard extends StatelessWidget {
                             context,
                             user.skillsToTeach.first,
                             Colors.green,
+                            "Teaches",
                           ),
                         if (user.skillsToLearn.isNotEmpty)
                           _buildSkillChip(
                             context,
                             user.skillsToLearn.first,
                             Colors.blue,
+                            "Learns",
                           ),
                       ],
                     ),
                   ],
                 ),
               ),
-              
-              // Arrow icon
+
+              // Arrow Icon
               Icon(
-                Icons.arrow_forward_ios,
+                Icons.arrow_forward_ios_rounded,
                 size: 16,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ],
           ),
@@ -108,14 +117,18 @@ class UserCard extends StatelessWidget {
     );
   }
 
-  Widget _buildSkillChip(BuildContext context, String skill, Color color) {
+  /// Builds a styled skill chip
+  Widget _buildSkillChip(
+      BuildContext context, String skill, Color color, String label) {
+    final theme = Theme.of(context);
     return Chip(
+      visualDensity: VisualDensity.compact,
       label: Text(
-        skill,
-        style: TextStyle(fontSize: 12, color: color),
+        skill.length > 14 ? '${skill.substring(0, 14)}…' : skill,
+        style: theme.textTheme.labelSmall?.copyWith(color: color),
       ),
-      backgroundColor: color.withOpacity(0.1),
-      padding: EdgeInsets.zero,
+      backgroundColor: color.withOpacity(0.15),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
   }

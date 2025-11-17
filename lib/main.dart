@@ -1,23 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'services/auth_service.dart';
 import 'services/db_service.dart';
 import 'services/match_service.dart';
+import 'services/socket_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
+import 'screens/incoming_call_screen.dart';
+
+// Global navigator key for navigation from anywhere
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 /// Main entry point for the Skillocity app
 void main() async {
-  // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize Firebase
-  // Note: You need to add your Firebase configuration files
-  // - android/app/google-services.json for Android
-  // - ios/Runner/GoogleService-Info.plist for iOS
-  await Firebase.initializeApp();
-  
   runApp(const SkillocityApp());
 }
 
@@ -29,55 +25,47 @@ class SkillocityApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // Provide services for app-wide access
-        Provider<AuthService>(
-          create: (_) => AuthService(),
-        ),
-        Provider<DatabaseService>(
-          create: (_) => DatabaseService(),
-        ),
-        Provider<MatchService>(
-          create: (_) => MatchService(),
-        ),
+        Provider<AuthService>(create: (_) => AuthService()),
+        Provider<DatabaseService>(create: (_) => DatabaseService()),
+        Provider<MatchService>(create: (_) => MatchService()),
       ],
       child: MaterialApp(
+        navigatorKey: navigatorKey,
         title: 'Skillocity',
         debugShowCheckedModeBanner: false,
-        
-        // Material 3 theme configuration
+
+        // ✅ Light Theme
         theme: ThemeData(
           useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(
             seedColor: Colors.deepPurple,
             brightness: Brightness.light,
           ),
-          cardTheme: CardTheme(
+          cardTheme: const CardThemeData(
             elevation: 2,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.all(Radius.circular(16)),
             ),
           ),
         ),
-        
-        // Dark theme configuration
+
+        // ✅ Dark Theme
         darkTheme: ThemeData(
           useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(
             seedColor: Colors.deepPurple,
             brightness: Brightness.dark,
           ),
-          cardTheme: CardTheme(
+          cardTheme: const CardThemeData(
             elevation: 2,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.all(Radius.circular(16)),
             ),
           ),
         ),
-        
-        // Use system theme mode preference
+
         themeMode: ThemeMode.system,
-        
-        // Authentication wrapper to show appropriate screen
+
         home: const AuthWrapper(),
       ),
     );
@@ -85,32 +73,73 @@ class SkillocityApp extends StatelessWidget {
 }
 
 /// Authentication wrapper widget
-/// Shows LoginScreen or DashboardScreen based on auth state
-class AuthWrapper extends StatelessWidget {
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuth();
+  }
+
+  Future<void> _checkAuth() async {
     final authService = Provider.of<AuthService>(context, listen: false);
+    await authService.loadCurrentUser();
     
-    return StreamBuilder(
-      stream: authService.authStateChanges,
-      builder: (context, snapshot) {
-        // Show loading while checking authentication state
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
+    // Connect to Socket.IO if user is logged in
+    if (authService.currentUser != null) {
+      final socketService = SocketService.instance;
+      socketService.connect(authService.currentUser!.uid);
+      
+      // Wait a bit for socket to connect
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // Listen for incoming calls - use global navigator
+      socketService.onIncomingCall((data) {
+        print('📞 Incoming call received: ${data['callId']}');
+        if (navigatorKey.currentContext != null) {
+          Navigator.of(navigatorKey.currentContext!).push(
+            MaterialPageRoute(
+              builder: (_) => IncomingCallScreen(
+                callId: data['callId'],
+                callerId: data['callerId'],
+                callerName: data['callerName'] ?? 'Unknown',
+                roomName: data['roomName'],
+              ),
             ),
           );
         }
-        
-        // If user is logged in, show dashboard
-        if (snapshot.hasData) {
+      });
+    }
+    
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final authService = Provider.of<AuthService>(context, listen: false);
+
+    return StreamBuilder(
+      stream: authService.authStateChanges,
+      builder: (context, snapshot) {
+        if (snapshot.hasData && snapshot.data != null) {
           return const DashboardScreen();
         }
-        
-        // Otherwise, show login screen
         return const LoginScreen();
       },
     );

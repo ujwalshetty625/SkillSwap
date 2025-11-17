@@ -1,5 +1,6 @@
-/// User model representing a Skillocity user profile
-/// This model is used throughout the app for user data
+/// Models for Skillocity App
+/// Compatible with both Firestore and Offline Mock Data
+
 class UserModel {
   final String uid;
   final String email;
@@ -24,7 +25,10 @@ class UserModel {
   })  : createdAt = createdAt ?? DateTime.now(),
         lastActive = lastActive ?? DateTime.now();
 
-  /// Convert UserModel to JSON for Firestore storage
+  /// ✅ Helper for mock/offline data compatibility
+  List<String> get allSkills => [...skillsToTeach, ...skillsToLearn];
+
+  /// Convert UserModel to JSON
   Map<String, dynamic> toJson() {
     return {
       'uid': uid,
@@ -39,22 +43,40 @@ class UserModel {
     };
   }
 
-  /// Create UserModel from Firestore JSON data
+  /// Create from Firestore or mock JSON
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
       uid: json['uid'] ?? '',
       email: json['email'] ?? '',
       name: json['name'] ?? '',
       bio: json['bio'] ?? '',
-      skillsToTeach: List<String>.from(json['skillsToTeach'] ?? []),
-      skillsToLearn: List<String>.from(json['skillsToLearn'] ?? []),
+      skillsToTeach: List<String>.from(
+        json['skillsToTeach'] ?? json['skills'] ?? [],
+      ),
+      skillsToLearn: List<String>.from(
+        json['skillsToLearn'] ?? json['interests'] ?? [],
+      ),
       photoUrl: json['photoUrl'],
-      createdAt: DateTime.parse(json['createdAt']),
-      lastActive: DateTime.parse(json['lastActive']),
+      createdAt: _parseDate(json['createdAt']),
+      lastActive: _parseDate(json['lastActive']),
     );
   }
 
-  /// Create a copy of UserModel with updated fields
+  /// Safe date parsing
+  static DateTime _parseDate(dynamic value) {
+    if (value == null) return DateTime.now();
+    if (value is DateTime) return value;
+    if (value is String) {
+      try {
+        return DateTime.parse(value);
+      } catch (_) {
+        return DateTime.now();
+      }
+    }
+    return DateTime.now();
+  }
+
+  /// Copy helper
   UserModel copyWith({
     String? uid,
     String? email,
@@ -80,7 +102,7 @@ class UserModel {
   }
 }
 
-/// Message model for chat functionality
+/// Message model for chat
 class MessageModel {
   final String id;
   final String senderId;
@@ -115,13 +137,13 @@ class MessageModel {
       senderId: json['senderId'] ?? '',
       receiverId: json['receiverId'] ?? '',
       message: json['message'] ?? '',
-      timestamp: DateTime.parse(json['timestamp']),
+      timestamp: UserModel._parseDate(json['timestamp']),
       isRead: json['isRead'] ?? false,
     );
   }
 }
 
-/// Match model representing a connection between two users
+/// Match model for connecting users
 class MatchModel {
   final String matchId;
   final String user1Id;
@@ -153,7 +175,7 @@ class MatchModel {
       user1Id: json['user1Id'] ?? '',
       user2Id: json['user2Id'] ?? '',
       commonSkills: List<String>.from(json['commonSkills'] ?? []),
-      matchedAt: DateTime.parse(json['matchedAt']),
+      matchedAt: UserModel._parseDate(json['matchedAt']),
     );
   }
 }

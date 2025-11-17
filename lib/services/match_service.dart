@@ -1,31 +1,22 @@
 import '../models/user_model.dart';
-import 'db_service.dart';
-import 'package:uuid/uuid.dart';
+import 'api_service.dart';
 
 /// Match service that finds potential skill exchange partners
-/// Implements the mutual matching algorithm
+/// Uses REST API for matching operations
 class MatchService {
-  final DatabaseService _dbService = DatabaseService();
-  final Uuid _uuid = const Uuid();
+  final ApiService _apiService = ApiService();
 
   /// Find potential matches for a user
   /// Returns users who teach what the current user wants to learn
   /// AND who want to learn what the current user teaches (mutual match)
   Future<List<UserModel>> findPotentialMatches(UserModel currentUser) async {
     try {
-      // Get all other users
-      List<UserModel> allUsers = await _dbService.getAllUsers(currentUser.uid);
-      
-      // Filter for mutual matches
-      List<UserModel> potentialMatches = [];
-      
-      for (UserModel otherUser in allUsers) {
-        if (_isMutualMatch(currentUser, otherUser)) {
-          potentialMatches.add(otherUser);
-        }
+      final response = await _apiService.get('/matches/potential');
+      if (response['success'] == true) {
+        final matches = response['matches'] as List;
+        return matches.map((user) => UserModel.fromJson(user)).toList();
       }
-      
-      return potentialMatches;
+      return [];
     } catch (e) {
       throw Exception('Failed to find matches: ${e.toString()}');
     }
@@ -69,27 +60,15 @@ class MatchService {
   /// Create a match between two users
   Future<bool> createMatch(UserModel user1, UserModel user2) async {
     try {
-      // Check if match already exists
-      bool exists = await _dbService.matchExists(user1.uid, user2.uid);
-      if (exists) {
-        return false; // Match already exists
+      final response = await _apiService.post('/matches/create', {
+        'otherUserId': user2.uid,
+      });
+
+      if (response['success'] == true) {
+        return true;
+      } else {
+        return false;
       }
-      
-      // Get common skills
-      List<String> commonSkills = getCommonSkills(user1, user2);
-      
-      // Create match model
-      MatchModel match = MatchModel(
-        matchId: _uuid.v4(),
-        user1Id: user1.uid,
-        user2Id: user2.uid,
-        commonSkills: commonSkills,
-      );
-      
-      // Save match to database
-      await _dbService.createMatch(match);
-      
-      return true;
     } catch (e) {
       throw Exception('Failed to create match: ${e.toString()}');
     }
@@ -98,26 +77,15 @@ class MatchService {
   /// Get all matched users for the current user
   Future<List<UserModel>> getMatchedUsers(String currentUserId) async {
     try {
-      // Get all matches for current user
-      List<MatchModel> matches = await _dbService.getUserMatches(currentUserId);
-      
-      // Get user profiles for each match
-      List<UserModel> matchedUsers = [];
-      
-      for (MatchModel match in matches) {
-        // Determine which user ID is the other person
-        String otherUserId = match.user1Id == currentUserId 
-            ? match.user2Id 
-            : match.user1Id;
-        
-        // Fetch their profile
-        UserModel? user = await _dbService.getUserProfile(otherUserId);
-        if (user != null) {
-          matchedUsers.add(user);
-        }
+      final response = await _apiService.get('/matches/my-matches');
+      if (response['success'] == true) {
+        final matches = response['matches'] as List;
+        return matches.map((matchData) {
+          final user = matchData['user'] as Map<String, dynamic>;
+          return UserModel.fromJson(user);
+        }).toList();
       }
-      
-      return matchedUsers;
+      return [];
     } catch (e) {
       throw Exception('Failed to get matched users: ${e.toString()}');
     }

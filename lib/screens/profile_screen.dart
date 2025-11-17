@@ -160,8 +160,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         lastActive: DateTime.now(),
       );
 
-      // Update profile in Firestore
+      // Update profile via API
       await dbService.updateUserProfile(updatedUser);
+
+      // Update current user in auth service
+      authService.currentUser = updatedUser;
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

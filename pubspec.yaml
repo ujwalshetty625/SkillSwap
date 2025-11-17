@@ -9,36 +9,39 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  
-  # Firebase
-  firebase_core: ^2.24.2
-  firebase_auth: ^4.15.3
-  cloud_firestore: ^4.13.6
-  firebase_storage: ^11.5.6
-  
-  # State Management
-  provider: ^6.1.1
-  
+
+  # Firebase core packages (stable for Flutter 3.24+)
+  firebase_core: ^4.2.1
+  firebase_auth: ^6.1.2
+  cloud_firestore: ^6.1.0
+  firebase_storage: ^13.0.4
+
+  # State management
+  provider: ^6.1.2
+
   # UI & Images
   cupertino_icons: ^1.0.6
   image_picker: ^1.0.7
   cached_network_image: ^3.3.1
-  
-  # Video Calling
-  jitsi_meet_flutter_sdk: ^9.1.2
-  
+
+  # Video Calling (latest Jitsi SDK)
+
+  # HTTP & WebSocket
+  http: ^1.1.0
+  socket_io_client: ^2.0.3+1
+  shared_preferences: ^2.2.2
+
   # Utilities
-  intl: ^0.18.1
-  uuid: ^4.3.3
+  intl: ^0.20.2
+  uuid: ^4.4.0
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.1
+  flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true
-  
-  # Add assets folder for images and icons
   # assets:
   #   - assets/images/

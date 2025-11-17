@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/user_model.dart';
-import '../services/auth_service.dart';
-import '../services/db_service.dart';
-import '../services/match_service.dart';
 import '../widgets/user_card.dart';
-import 'profile_screen.dart';
+import '../services/auth_service.dart';
+import '../services/match_service.dart';
+import '../services/socket_service.dart';
+import '../main.dart'; // For navigatorKey
 import 'chat_screen.dart';
 import 'login_screen.dart';
+import 'profile_screen.dart';
+import 'incoming_call_screen.dart';
 
-/// Main dashboard showing matches, potential matches, and navigation
+/// Dashboard screen showing potential matches and existing matches
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -28,80 +30,122 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _loadData();
+    _setupIncomingCallListener();
   }
 
-  /// Load user data and matches
+  /// Set up incoming call listener (runs when dashboard loads)
+  void _setupIncomingCallListener() {
+    final socketService = SocketService.instance;
+    
+    // Remove any existing listeners to avoid duplicates
+    socketService.removeAllListeners();
+    
+    // Set up incoming call listener
+    socketService.onIncomingCall((data) {
+      print('📞 Incoming call on dashboard: ${data['callId']}');
+      if (mounted && navigatorKey.currentContext != null) {
+        Navigator.of(navigatorKey.currentContext!).push(
+          MaterialPageRoute(
+            builder: (_) => IncomingCallScreen(
+              callId: data['callId'],
+              callerId: data['callerId'],
+              callerName: data['callerName'] ?? 'Unknown',
+              roomName: data['roomName'],
+            ),
+          ),
+        );
+      }
+    });
+  }
+
+  /// Load user data and matches from API
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    
+
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
-      final dbService = Provider.of<DatabaseService>(context, listen: false);
       final matchService = Provider.of<MatchService>(context, listen: false);
-      
-      final user = authService.currentUser;
-      if (user != null) {
-        // Load user profile
-        final profile = await dbService.getUserProfile(user.uid);
-        
-        if (profile != null) {
-          // Load potential matches
-          final potentialMatches = await matchService.findPotentialMatches(profile);
-          
-          // Load existing matches
-          final myMatches = await matchService.getMatchedUsers(profile.uid);
-          
-          if (mounted) {
-            setState(() {
-              _currentUser = profile;
-              _potentialMatches = potentialMatches;
-              _myMatches = myMatches;
-              _isLoading = false;
-            });
-          }
+
+      // Load current user
+      await authService.loadCurrentUser();
+      _currentUser = authService.currentUser;
+
+      if (_currentUser != null) {
+        // Load potential matches
+        _potentialMatches = await matchService.findPotentialMatches(_currentUser!);
+
+        // Load existing matches
+        _myMatches = await matchService.getMatchedUsers(_currentUser!.uid);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading data: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  /// Handle matching with a user
+  Future<void> _handleMatch(UserModel otherUser) async {
+    try {
+      final matchService = Provider.of<MatchService>(context, listen: false);
+      final success = await matchService.createMatch(_currentUser!, otherUser);
+
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Matched with ${otherUser.name}!')),
+          );
+          // Refresh data
+          _loadData();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Match already exists or failed')),
+          );
         }
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load data: $e')),
+          SnackBar(content: Text('Error creating match: $e')),
         );
       }
     }
   }
 
-  /// Handle creating a match with a user
-  Future<void> _handleMatch(UserModel otherUser) async {
-    if (_currentUser == null) return;
-
+  /// Handle logout
+  Future<void> _handleSignOut() async {
     try {
-      final matchService = Provider.of<MatchService>(context, listen: false);
-      bool created = await matchService.createMatch(_currentUser!, otherUser);
-      
-      if (created && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Matched with ${otherUser.name}!')),
-        );
-        _loadData(); // Reload data to update lists
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('You are already matched!')),
+      final authService = Provider.of<AuthService>(context, listen: false);
+      await authService.signOut();
+
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (route) => false,
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to create match: $e')),
+          SnackBar(content: Text('Error signing out: $e')),
         );
       }
     }
   }
 
-  /// Navigate to chat with a matched user
+  /// Open chat with a user
   void _openChat(UserModel otherUser) {
     if (_currentUser == null) return;
-    
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ChatScreen(
@@ -110,18 +154,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ),
     );
-  }
-
-  /// Sign out user
-  Future<void> _handleSignOut() async {
-    final authService = Provider.of<AuthService>(context, listen: false);
-    await authService.signOut();
-    if (mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (route) => false,
-      );
-    }
   }
 
   @override
@@ -136,7 +168,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               await Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const ProfileScreen()),
               );
-              _loadData(); // Reload after profile edit
+              // Refresh data after profile update
+              _loadData();
             },
           ),
           IconButton(
@@ -175,34 +208,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// Build discover tab showing potential matches
+  /// Build discover tab (potential matches)
   Widget _buildDiscoverTab() {
     if (_potentialMatches.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.search_off,
-              size: 80,
-              color: Theme.of(context).colorScheme.outline,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No potential matches found',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(
-                'Update your skills to find people who can help you learn!',
-                style: Theme.of(context).textTheme.bodyMedium,
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ],
-        ),
+      return _emptyState(
+        icon: Icons.search_off,
+        title: 'No potential matches found',
+        subtitle: 'Try again later or update your skills!',
       );
     }
 
@@ -221,34 +233,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// Build matches tab showing existing matches
+  /// Build matches tab (existing matches)
   Widget _buildMatchesTab() {
     if (_myMatches.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.people_outline,
-              size: 80,
-              color: Theme.of(context).colorScheme.outline,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No matches yet',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(
-                'Start discovering people to match with!',
-                style: Theme.of(context).textTheme.bodyMedium,
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ],
-        ),
+      return _emptyState(
+        icon: Icons.people_outline,
+        title: 'No matches yet',
+        subtitle: 'Start discovering people to match with!',
       );
     }
 
@@ -267,13 +258,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  /// Show dialog to confirm matching with a user
+  /// Reusable empty view
+  Widget _emptyState({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 80, color: Theme.of(context).colorScheme.outline),
+          const SizedBox(height: 16),
+          Text(title, style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              subtitle,
+              style: Theme.of(context).textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Show match dialog
   void _showMatchDialog(UserModel user) {
-    if (_currentUser == null) return;
-    
-    final matchService = Provider.of<MatchService>(context, listen: false);
-    final commonSkills = matchService.getCommonSkills(_currentUser!, user);
-    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -284,11 +297,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           children: [
             Text(user.bio),
             const SizedBox(height: 16),
-            const Text(
-              'Common Skills:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            ...commonSkills.map((skill) => Text('• $skill')),
+            const Text('Skills to Teach:',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            ...user.skillsToTeach.map((skill) => Text('• $skill')),
+            const SizedBox(height: 12),
+            const Text('Skills to Learn:',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            ...user.skillsToLearn.map((skill) => Text('• $skill')),
           ],
         ),
         actions: [
