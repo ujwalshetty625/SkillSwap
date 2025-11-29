@@ -173,4 +173,16 @@ class DatabaseService {
       return false;
     }
   }
+
+  /// Generate a deterministic room name for two users
+  /// This ensures both users always get the same room name for a given pair
+  static String generateRoomName(String userId1, String userId2) {
+    // Sort user IDs to ensure same room name regardless of order
+    final ids = [userId1, userId2]..sort();
+    // Create a clean room name using sorted IDs
+    // Remove any special characters and create a valid Jitsi room name
+    final cleanId1 = ids[0].replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
+    final cleanId2 = ids[1].replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
+    return 'skillocity_${cleanId1}_${cleanId2}';
+  }
 }

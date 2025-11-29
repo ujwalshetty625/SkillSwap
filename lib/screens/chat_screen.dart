@@ -8,6 +8,7 @@ import '../services/db_service.dart';
 import '../services/socket_service.dart';
 import 'video_call_screen.dart';
 import 'video_call_simple_screen.dart';
+import 'video_call_direct_screen.dart';
 
 /// Chat screen between matched users
 /// Uses REST API for messaging (with polling for updates)
@@ -115,52 +116,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Start video call with the other user
   void _startVideoCall() {
-    // Show dialog to choose call method
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Start Video Call'),
-        content: const Text('Choose how to start the call:'),
-        actions: [
-          // Simple method - send link via chat
-          TextButton.icon(
-            icon: const Icon(Icons.chat),
-            label: const Text('Send Link (Simple)'),
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => VideoCallSimpleScreen(
-                    currentUser: widget.currentUser,
-                    otherUser: widget.otherUser,
-                  ),
-                ),
-              );
-            },
-          ),
-          // Socket.IO method - real-time notification
-          FilledButton.icon(
-            icon: const Icon(Icons.videocam),
-            label: const Text('Real-time Call'),
-            onPressed: () {
-              Navigator.pop(context);
-              // Ensure socket is connected
-              final socketService = SocketService.instance;
-              if (!socketService.isConnected) {
-                socketService.connect(widget.currentUser.uid);
-              }
-
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => VideoCallScreen(
-                    currentUser: widget.currentUser,
-                    otherUser: widget.otherUser,
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
+    // Use direct method by default - opens Jitsi immediately with deterministic room name
+    // Both users can join the same room using the same room name
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => VideoCallDirectScreen(
+          currentUser: widget.currentUser,
+          otherUser: widget.otherUser,
+        ),
       ),
     );
   }

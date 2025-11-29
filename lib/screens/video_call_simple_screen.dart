@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/user_model.dart';
@@ -77,16 +76,8 @@ class _VideoCallSimpleScreenState extends State<VideoCallSimpleScreen> {
   }
 
   String _createRoomName(String uid1, String uid2) {
-    final ids = [uid1, uid2]..sort();
-    final suffix = _shortRandom(4);
-    return 'skillocity_${ids[0]}_${ids[1]}_$suffix'
-        .replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '');
-  }
-
-  String _shortRandom(int length) {
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    final rnd = Random();
-    return List.generate(length, (_) => chars[rnd.nextInt(chars.length)]).join();
+    // Use deterministic room name from db_service
+    return DatabaseService.generateRoomName(uid1, uid2);
   }
 
   Future<void> _openJitsi(String url) async {

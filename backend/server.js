@@ -4,7 +4,7 @@ const cors = require('cors');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
-require('dotenv').config();
+require('dotenv').config(); // load .env
 
 const app = express();
 const server = http.createServer(app);
@@ -21,23 +21,31 @@ const io = socketIo(server, {
 const activeCalls = new Map();
 
 // Middleware
-app.use(cors({
-  origin: process.env.CORS_ORIGIN?.split(',') || '*',
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin: process.env.CORS_ORIGIN?.split(',') || '*',
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/skillocity', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log('✅ MongoDB connected'))
-.catch((err) => console.error('❌ MongoDB connection error:', err));
+// ===== MongoDB Connection (UPDATED) =====
+const MONGO_URI =
+  process.env.MONGO_URI ||
+  process.env.MONGODB_URI || // fallback if you ever name it this on Render
+  'mongodb://localhost:27017/skillocity';
+
+mongoose
+  .connect(MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => console.log('✅ MongoDB connected'))
+  .catch((err) => console.error('❌ MongoDB connection error:', err));
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
@@ -119,7 +127,10 @@ io.on('connection', (socket) => {
 
     console.log(`📞 Call initiated: ${callerId} calling ${receiverId}`);
     console.log(`📞 Sending to room: user_${receiverId}`);
-    console.log(`📞 Active rooms:`, Array.from(io.sockets.adapter.rooms.keys()));
+    console.log(
+      `📞 Active rooms:`,
+      Array.from(io.sockets.adapter.rooms.keys())
+    );
 
     // Notify receiver
     io.to(`user_${receiverId}`).emit('incoming_call', {
@@ -154,7 +165,6 @@ io.on('connection', (socket) => {
       console.log(`📞 Notifying receiver: ${call.receiverId}`);
 
       // Notify BOTH users at the same time to join Jitsi
-      // This ensures they join together
       const joinData = {
         callId,
         roomName: call.roomName,
@@ -163,11 +173,13 @@ io.on('connection', (socket) => {
 
       // Notify caller
       io.to(`user_${call.callerId}`).emit('call_accepted', joinData);
-      
-      // Notify receiver (same data)
+
+      // Notify receiver
       io.to(`user_${call.receiverId}`).emit('call_accepted', joinData);
 
-      console.log(`✅ Both users notified to join Jitsi room: ${call.roomName}`);
+      console.log(
+        `✅ Both users notified to join Jitsi room: ${call.roomName}`
+      );
     } else {
       console.log(`❌ Call not found: ${callId}`);
     }
@@ -219,9 +231,8 @@ io.on('connection', (socket) => {
       if (call.callerId === socket.userId || call.receiverId === socket.userId) {
         if (call.status === 'ringing') {
           // Notify the other party
-          const otherUserId = call.callerId === socket.userId 
-            ? call.receiverId 
-            : call.callerId;
+          const otherUserId =
+            call.callerId === socket.userId ? call.receiverId : call.callerId;
           io.to(`user_${otherUserId}`).emit('call_ended', { callId });
         }
         activeCalls.delete(callId);
@@ -236,7 +247,8 @@ app.use((err, req, res, next) => {
   res.status(500).json({
     success: false,
     message: 'Something went wrong!',
-    error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+    error:
+      process.env.NODE_ENV === 'development' ? err.message : undefined,
   });
 });
 
